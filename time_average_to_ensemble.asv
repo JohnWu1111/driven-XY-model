@@ -1,0 +1,90 @@
+% 2D XY model, using time evolution method to calculate physical observable
+% of finite tempature 
+
+clear;
+% close all;
+clc;
+format long
+tic;
+
+myseed = 1;
+rng(myseed)
+
+T_pre = 100;
+dt = 1e-3;
+t_pre = 0:dt:T_pre;
+nt_pre = length(t_pre);
+n_mea = 100;
+M = 100;
+L = 10;
+x = 1:L;
+nx = length(x);
+J = -1;
+eta = 0.01;
+theta = 1e-1;
+
+phi = zeros(L,L,2);
+phi(:,:,1) = rand(nx);
+order = zeros(1,nt);
+order(1) = sum(cos(phi(:,:,1)),'all');
+corre = zeros(L,1);
+
+% pre-thermalization
+for i = 2:nt_pre
+    phi = Heun_step(phi, dt, J, eta, theta);
+%     phi = myFTCS(phi, dt, J, eta, 0);
+    order(i) = sum(cos(phi(:,:,1)),'all');
+    corre(:,i) = cal_corre(phi(:,:,1));
+end
+order = order/L^2;
+
+% measurement
+for i = 1:M*n_mea
+    phi = Heun_step(phi, dt, J, eta, theta);
+%     phi = myFTCS(phi, dt, J, eta, 0);
+    if mod(i,M) == 0
+        corre = ;
+end
+
+toc;
+
+figure;
+set(gcf, 'position', [250 70 1600 900]);
+titlename = strcat('\eta = ',num2str(eta), '\theta = ',num2str(theta));
+subplot(1,2,1)
+plot(t,order)
+subplot(1,2,2)
+plot(x,corre(:,end))
+
+function y = myFTCS(phi, dt, J, eta, field)
+c1 = f(phi, J, eta, field);
+c2 = f(phi+c1*dt/2, J, eta, field);
+c3 = f(phi+c2*dt/2, J, eta, field);
+c4 = f(phi+c3*dt, J, eta, field);
+y = phi + dt*(c1+2*c2+2*c3+c4)/6;
+end
+
+function y = Heun_step(phi, dt, J, eta, theta)
+L = length(phi);
+field = randn(L)*sqrt(2*eta*theta/dt);
+z = phi + dt*f(phi, J, eta, field);
+y = phi + dt*f((phi+z)/2, J, eta, field);
+end
+
+function y = f(x, J, eta, field)
+L = length(x);
+y = zeros(L,L,2);
+phi = x(:,:,1);
+dphi = x(:,:,2);
+y(:,:,1) = dphi;
+tau = sin(phi-circshift(phi,1,1)) + sin(phi-circshift(phi,-1,1)) + sin(phi-circshift(phi,1,2)) + sin(phi-circshift(phi,-1,2));
+y(:,:,2) = eta*dphi + J*tau + field;
+end
+
+function y = cal_corre(phi)
+L = length(phi);
+y = zeros(L,1);
+for i = 1:L
+    y(i) = sum(cos(phi-circshift(phi,i,1)) + cos(phi-circshift(phi,-i,1)) + cos(phi-circshift(phi,i,2)) + cos(phi-circshift(phi,-i,2)),'all')/(4*L^2);
+end
+end
